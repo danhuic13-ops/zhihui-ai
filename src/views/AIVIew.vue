@@ -52,9 +52,10 @@ const sendMessage = async () => {
   // 开始生成回复
   isGenerating.value = true
 
+  let aiReply
   try {
     // 转换消息格式为OpenAI API所需的格式
-    const apiMessages = messages.value.map(msg => ({
+    const apiMessages = messages.value.filter(msg => !msg.failed && msg.content).map(msg => ({
       role: msg.role,
       content: msg.content
     }))
@@ -77,7 +78,7 @@ const sendMessage = async () => {
     // 处理流式响应
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
-    let aiReply = {
+    aiReply = {
       id: Date.now() + 1,
       role: 'assistant',
       content: '',
@@ -85,25 +86,31 @@ const sendMessage = async () => {
     }
     messages.value.push(aiReply)
     
-    // 隐藏正在输入指示器
-    isGenerating.value = false
+    let buffer = ''
+    let streamDone = false
 
-    while (true) {
+    try {
+    while (!streamDone) {
       const { done, value } = await reader.read()
-      if (done) break
-
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n')
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = done ? '' : lines.pop()
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim()
-          if (data === '[DONE]') break
+        if (line.startsWith('data:')) {
+          const data = line.slice(5).trim()
+          if (!data) continue
+          if (data === '[DONE]') {
+            streamDone = true
+            break
+          }
 
-          try {
             const json = JSON.parse(data)
+            if (json.code != null && Number(json.code) !== 0) {
+              throw new Error(`讯飞接口错误 ${json.code}: ${json.message || '请求失败'}`)
+            }
             if (json.error) {
-              throw new Error(json.error)
+              throw new Error(typeof json.error === 'string' ? json.error : json.error.message || '请求失败')
             }
             if (json.choices && json.choices.length > 0) {
               const delta = json.choices[0].delta
@@ -116,17 +123,22 @@ const sendMessage = async () => {
                 scrollToBottom()
               }
             }
-          } catch (jsonError) {
-            console.error('解析JSON错误:', jsonError)
-            // 发送错误通知
-            ElMessage.error(`流式响应解析错误: ${jsonError.message}`)
-          }
         }
       }
+      if (done) break
+    }
+    if (!aiReply.content) throw new Error('接口没有返回回复内容')
+    } finally {
+      try { await reader.cancel() } finally { reader.releaseLock() }
     }
   } catch (error) {
     console.error('Error:', error)
-    ElMessage.error('获取AI回复失败，请稍后重试')
+    if (aiReply) {
+      aiReply.failed = true
+      aiReply.content = aiReply.content || error.message
+      messages.value = [...messages.value]
+    }
+    ElMessage.error(error.message || '获取AI回复失败，请稍后重试')
   } finally {
     isGenerating.value = false
     scrollToBottom()
