@@ -11,6 +11,9 @@ import { createPinia } from 'pinia'
 // 【新增：导入Element Plus组件库】
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import 'vue-virtual-scroller/index.css'
+import 'katex/dist/katex.min.css'
+import 'highlight.js/styles/github-dark.css'
 
 // 创建Vue应用实例
 const app = createApp(App)

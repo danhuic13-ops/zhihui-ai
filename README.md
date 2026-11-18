@@ -1,325 +1,92 @@
-<img width="2878" height="1686" alt="image" src="https://github.com/user-attachments/assets/2cb94414-5e52-4941-957f-ffcb6c78642f" />
-改三个地方，<img width="484" height="92" alt="QQ_1772809677178" src="https://github.com/user-attachments/assets/f5ae93b0-2d1f-413d-8e05-4a90caf58aee" />
-<img width="1250" height="510" alt="QQ_1772809690100" src="https://github.com/user-attachments/assets/fab00fef-356c-408a-beaf-137fe1c83663" />
-然后<img width="1776" height="738" alt="QQ_1772809705656" src="https://github.com/user-attachments/assets/a758d347-b4f6-4d60-ae18-a3f70bb47b3c" />
+# 学思智答｜AI 学习助手
 
+一个面向学习场景的 AI 对话与学习计划应用。前端使用 Vue 3 构建，后端通过讯飞 MaaS 提供流式问答；支持会话本地恢复、Markdown 内容展示和待办计划管理。
 
-# AI聊天应用教程
+## 功能亮点
 
-这是一个基于 Vue 3 + Node.js 构建的AI聊天应用教学项目，实现了与讯飞MaaS平台的集成，支持流式对话功能。
+- **AI 流式答疑**：通过 Fetch 与 ReadableStream 逐段接收 SSE 回复，支持停止生成，并使用请求标识避免切换会话后串写。
+- **多会话历史**：使用 Pinia 管理会话，通过 localStorage 延迟保存并在刷新后恢复；空白会话不会进入历史记录。
+- **长列表优化**：使用 `vue-virtual-scroller` 动态测量并虚拟渲染聊天消息。
+- **结构化消息展示**：使用 Markdown-it 渲染 Markdown，支持 KaTeX 公式与 Highlight.js 常用代码语言高亮。
+- **学习计划管理**：支持新增、完成、全选和批量删除待办事项，并显示完成进度。
+- **语音输入**：在浏览器支持 Web Speech API 时，可将语音识别结果填入输入框。
+- **响应式界面**：为桌面与窄屏布局提供适配。
 
 ## 技术栈
 
-### 前端
-- Vue 3 (Composition API)
-- Vite
-- Element Plus
-- CSS3
+- 前端：Vue 3、Vite、Pinia、Vue Router、Element Plus
+- 消息渲染：Markdown-it、KaTeX、Highlight.js
+- 虚拟滚动：vue-virtual-scroller
+- 后端：Node.js 原生 HTTP/HTTPS、dotenv
+- AI 服务：讯飞 MaaS（当前模型配置在 `backend/index.js`）
 
-### 后端
-- Node.js
-- 原生HTTP模块
-- HTTPS模块
-- dotenv
+## 本地运行
 
-### AI服务
-- 讯飞MaaS平台 (xop3qwen1b7模型)
+需要 Node.js 20.19+ 或 22.12+，并准备可用的讯飞 MaaS API Key。
 
-## 项目架构
+### 1. 安装依赖
 
-```
-├── backend/          # 后端服务
-│   ├── index.js     # 主服务器文件
-│   ├── package.json # 后端依赖
-│   └── .env         # 环境变量配置
-├── src/             # 前端代码
-│   ├── views/       # 页面组件
-│   │   └── AIVIew.vue # AI聊天页面
-│   ├── components/  # 通用组件
-│   ├── main.js      # 前端入口
-│   └── App.vue      # 根组件
-├── index.html       # HTML模板
-├── package.json     # 前端依赖
-└── vite.config.js   # Vite配置
-```
+在项目根目录运行：
 
-## 核心功能
-
-1. **实时流式对话**：与AI模型进行实时的流式交互，逐字显示回复内容
-2. **消息历史管理**：自动维护对话历史，支持上下文理解
-3. **响应式UI设计**：适配不同屏幕尺寸的现代化界面
-4. **优雅的错误处理**：完善的错误提示和边界情况处理
-
-## 前置条件
-
-- Node.js 16+ 环境
-- 讯飞开放平台账号 (获取API密钥)
-- Git (可选)
-
-## 快速开始
-
-### 1. 克隆项目
-
-```bash
-git clone <repository-url>
-cd yuan-chat-vue
-```
-
-### 2. 配置环境变量
-
-在 `backend/` 目录下创建 `.env` 文件：
-
-```env
-# 讯飞MaaS平台API密钥
-XUNFEI_API_KEY=your-api-key-here
-
-# 服务器端口
-PORT=3000
-```
-
-### 3. 安装依赖
-
-#### 前端依赖
 ```bash
 npm install
 ```
 
-#### 后端依赖
+再安装后端依赖：
+
 ```bash
 cd backend
 npm install
 cd ..
 ```
 
-### 4. 启动服务
+### 2. 配置后端密钥
 
-#### 启动后端服务
+复制 `backend/.env.example` 为 `backend/.env`，并填写自己的 API Key：
+
+```env
+XUNFEI_API_KEY=你的讯飞API密钥
+PORT=3000
+```
+
+`backend/.env` 已被 Git 忽略，不要把真实密钥提交到 GitHub。
+
+### 3. 分别启动后端和前端
+
+在第一个终端启动后端：
+
 ```bash
 cd backend
 npm run dev
 ```
 
-后端服务将运行在 `http://localhost:3000`
+在第二个终端从项目根目录启动前端：
 
-#### 启动前端服务
-在新的终端窗口中：
 ```bash
 npm run dev
 ```
 
-前端应用将运行在 `http://localhost:5173`
+浏览器访问 Vite 显示的本地地址，通常为 `http://localhost:5173`；AI 对话页面路径为 `/ai`。后端健康检查地址为 `http://localhost:3000/health`。
 
-### 5. 访问应用
+## 项目结构
 
-打开浏览器访问 `http://localhost:5173`，即可开始与AI聊天！
-
-## 核心代码解析
-
-### 后端实现 (backend/index.js)
-
-#### HTTP服务器创建
-```javascript
-const http = require('http');
-const server = http.createServer((req, res) => {
-  // 设置CORS头
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  // 处理请求...
-});
+```text
+src/
+├── components/       # 聊天消息、待办条目组件
+├── stores/           # Pinia：聊天会话与待办状态
+├── views/            # 首页、AI 对话、学习计划、关于页面
+├── router/           # Vue Router 配置
+├── App.vue           # 工作台布局与导航
+└── main.js           # 应用入口
+backend/
+├── index.js          # HTTP API 与讯飞流式代理
+└── .env.example      # 环境变量示例（不含真实密钥）
 ```
 
-#### API端点处理
-```javascript
-// 处理POST请求到/api/chat
-if (req.method === 'POST' && req.url === '/api/chat') {
-  let body = '';
-  req.on('data', (chunk) => { body += chunk; });
-  req.on('end', () => {
-    const requestData = JSON.parse(body);
-    handleStreamRequest(requestData.messages, res);
-  });
-}
-```
+## 构建
 
-#### 流式响应处理
-```javascript
-function handleStreamRequest(messages, res) {
-  // 构造请求体
-  const requestBody = {
-    model: 'xop3qwen1b7',
-    messages: messages,
-    max_tokens: 4000,
-    temperature: 0.7,
-    stream: true
-  };
-  
-  // 发送HTTPS请求到MaaS平台
-  const maasReq = https.request(options, (maasRes) => {
-    // 设置SSE响应头
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    
-    // 直接将MaaS响应传递给客户端
-    maasRes.pipe(res);
-  });
-  
-  maasReq.write(JSON.stringify(requestBody));
-  maasReq.end();
-}
-```
-
-### 前端实现 (src/views/AIVIew.vue)
-
-#### 消息发送处理
-```javascript
-const sendMessage = async () => {
-  if (!inputMessage.value.trim() || isGenerating.value) return;
-  
-  // 添加用户消息
-  const userMessage = { /* ... */ };
-  messages.value.push(userMessage);
-  
-  isGenerating.value = true;
-  
-  try {
-    // 调用后端API
-    const response = await fetch('http://localhost:3000/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: apiMessages })
-    });
-    
-    // 处理流式响应
-    await handleStreamResponse(response);
-  } catch (error) {
-    ElMessage.error('获取AI回复失败');
-  } finally {
-    isGenerating.value = false;
-  }
-};
-```
-
-#### 流式响应处理
-```javascript
-const handleStreamResponse = async (response) => {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  
-  let aiReply = { /* ... */ };
-  messages.value.push(aiReply);
-  
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split('\n');
-    
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') break;
-        
-        const json = JSON.parse(data);
-        const content = json.choices[0].delta.content;
-        if (content) {
-          aiReply.content += content;
-          messages.value = [...messages.value];
-          scrollToBottom();
-        }
-      }
-    }
-  }
-};
-```
-
-## 部署建议
-
-### 开发环境
-- 使用 `npm run dev` 启动服务
-- 前端支持热重载
-
-### 生产环境
-1. 构建前端生产版本：
 ```bash
 npm run build
 ```
 
-2. 配置Nginx反向代理：
-```nginx
-server {
-    listen 80;
-    server_name example.com;
-    
-    location / {
-        root /path/to/dist;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-    
-    location /api/ {
-        proxy_pass http://localhost:3000/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-3. 使用PM2管理后端进程：
-```bash
-cd backend
-pm install pm2 -g
-pm start
-```
-
-## 常见问题
-
-### 1. API请求失败
-- 检查 `.env` 文件中的API密钥是否正确
-- 确保网络连接正常，能够访问讯飞MaaS平台
-- 查看后端日志了解具体错误信息
-
-### 2. 流式响应不显示
-- 检查浏览器控制台是否有JavaScript错误
-- 确认后端服务正常运行
-- 验证网络请求是否成功
-
-### 3. 前端样式异常
-- 检查Element Plus是否正确安装
-- 清除浏览器缓存
-- 查看控制台是否有CSS错误
-
-## 扩展学习
-
-### 功能扩展建议
-1. 添加多模型选择功能
-2. 实现消息保存和加载
-3. 增加用户身份认证
-4. 添加语音输入/输出功能
-5. 支持文件上传和处理
-
-### 技术深入学习
-- Vue 3 Composition API 官方文档
-- Node.js 流处理机制
-- Server-Sent Events (SSE) 协议
-- 讯飞MaaS平台 API 文档
-
-## 贡献指南
-
-欢迎提交Issue和Pull Request来改进这个项目！
-
-## 许可证
-
-MIT License
-
-## 联系方式
-
-如有问题或建议，请通过以下方式联系：
-- GitHub Issues: <repository-issues-url>
-- 电子邮件: <your-email>
-
----
-
-**享受AI聊天的乐趣！** 🤖💬
+构建产物输出到 `dist/`。该项目当前以本地开发和作品展示为主；如果要公开部署，需要另行配置后端托管、生产环境 API 地址和密钥保护。

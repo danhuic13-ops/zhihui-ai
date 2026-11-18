@@ -1,163 +1,30 @@
 <script setup>
-// 导入Element Plus图标
-import { 
-  HomeFilled, 
-  List, 
-  Document, 
-  Setting,
-  ChatRound
-} from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { House, ChatDotRound, CircleCheck, InfoFilled, Reading, ArrowRight } from '@element-plus/icons-vue'
+const route = useRoute()
+const links = [
+  { path: '/', label: '学习概览', icon: House, caption: '从这里开始今天的学习' },
+  { path: '/ai', label: '智能答疑', icon: ChatDotRound, caption: '让每个问题都有新的思路' },
+  { path: '/todo', label: '学习计划', icon: CircleCheck, caption: '把目标拆成每一个小进步' },
+  { path: '/about', label: '关于平台', icon: InfoFilled, caption: '认识你的学习伙伴' }
+]
+const current = computed(() => links.find(item => item.path === route.path) || links[0])
 </script>
-
 <template>
-  <div class="app-container">
-    <!-- 使用Element Plus的Container布局组件 -->
-    <el-container style="height: 100vh;">
-      <!-- 侧边栏 -->
-      <el-aside width="200px" style="background-color: #001529;">
-        <!-- 系统标题 -->
-        <div class="logo-container">
-          <h1 class="logo-text">Todo 系统</h1>
-        </div>
-        
-        <!-- 使用Element Plus的Menu组件实现导航菜单 -->
-        <el-menu
-          default-active="/"
-          class="sidebar-menu"
-          background-color="#001529"
-          text-color="#fff"
-          active-text-color="#ffd04b"
-          router
-        >
-          <el-menu-item index="/">
-            <template #title>
-              <el-icon><HomeFilled /></el-icon>
-              <span>首页</span>
-            </template>
-          </el-menu-item>
-          
-          <el-menu-item index="/todo">
-            <template #title>
-              <el-icon><List /></el-icon>
-              <span>待办列表</span>
-            </template>
-          </el-menu-item>
-          
-          <el-menu-item index="/about">
-            <template #title>
-              <el-icon><Document /></el-icon>
-              <span>关于系统</span>
-            </template>
-          </el-menu-item>
-          
-          <el-menu-item index="/ai">
-            <template #title>
-              <el-icon><ChatRound /></el-icon>
-              <span>AI对话</span>
-            </template>
-          </el-menu-item>
-        </el-menu>
-      </el-aside>
-      
-      <!-- 主内容区 -->
-      <el-container>
-        <!-- 顶部导航栏 -->
-        <el-header style="background-color: #fff; border-bottom: 1px solid #e6e6e6; display: flex; align-items: center; padding: 0 20px;">
-          <!-- 左侧占位元素 -->
-          <div style="flex: 1;"></div>
-          
-          <!-- 标题居中 -->
-          <h2>小圆前端练习</h2>
-          
-          <!-- 右侧占位元素 -->
-          <div style="flex: 1;"></div>
-          
-          <!-- 恢复系统设置下拉菜单 -->
-          <div class="user-info">
-            <el-dropdown>
-              <span class="el-dropdown-link">
-                <el-icon class="el-icon--right"><Setting /></el-icon>
-                系统设置
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item>个人中心</el-dropdown-item>
-                  <el-dropdown-item>退出登录</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-        </el-header>
-        
-        <!-- 路由视图区域 -->
-        <el-main style="padding: 20px;">
-          <!-- 使用RouterView组件显示当前路由对应的组件 -->
-          <router-view />
-        </el-main>
-      </el-container>
-    </el-container>
+  <div class="app-shell">
+    <aside class="app-sidebar">
+      <router-link to="/" class="brand"><span class="brand-icon"><el-icon><Reading /></el-icon></span><span>学思智答<small>你的专属学习空间</small></span></router-link>
+      <div class="nav-label">学习工作台</div>
+      <nav class="app-nav" aria-label="主导航">
+        <router-link v-for="item in links" :key="item.path" :to="item.path" :class="{ selected: route.path === item.path }"><el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span><el-icon class="nav-arrow"><ArrowRight /></el-icon></router-link>
+      </nav>
+      <div class="sidebar-note"><span>一点好奇，无限可能</span><p>每一个问题，都是进步的开始。</p><router-link to="/ai">开启新的探索 ↗</router-link></div>
+      <div class="sidebar-footer"><span class="avatar">学</span><div>保持好奇<small>让学习成为日常</small></div></div>
+    </aside>
+    <div class="app-body">
+      <header class="app-header"><div><span class="header-label">我的学习空间 / {{ current.label }}</span><h1>{{ current.label }}</h1></div><span class="header-caption">{{ current.caption }}</span></header>
+      <main class="app-main" :class="{ 'chat-page': route.path === '/ai' }"><router-view /></main>
+    </div>
   </div>
 </template>
-
-<style>
-/* 全局样式重置 */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html, body {
-  height: 100%;
-  font-family: Arial, sans-serif;
-}
-
-.app-container {
-  height: 100%;
-}
-
-/* 侧边栏样式 */
-.logo-container {
-  padding: 0;
-  height: 60px;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-bottom: 1px solid #1f2d3d;
-}
-
-.logo-text {
-  color: #fff;
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-  text-align: center;
-}
-
-.sidebar-menu {
-  border-right: none;
-}
-
-/* 顶部导航栏样式 */
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* 主内容区域样式 */
-.el-main {
-  background-color: #f5f7fa;
-}
-</style>
-
-<style scoped>
-/* 组件特定样式 */
-.el-dropdown-link {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-</style>
