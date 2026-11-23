@@ -63,7 +63,9 @@ const server = http.createServer((req, res) => {
 function handleStreamRequest(messages, res) {
   // 创建与简化版服务器完全相同的请求体
   const requestBody = {
-    model: 'xop3qwen1b7',
+    model: 'spark-x2.5-4b',
+    // 该模型默认深度思考可能耗尽 max_tokens，导致只有 reasoning_content、没有正文。
+    enable_thinking: false,
     messages: messages,
     max_tokens: 4000,
     temperature: 0.7,
@@ -86,7 +88,6 @@ function handleStreamRequest(messages, res) {
   };
   
   console.log('发送到MaaS的请求体:', JSON.stringify(requestBody, null, 2));
-  console.log('请求选项:', JSON.stringify(options, null, 2));
   
   // 创建请求（与简化版服务器完全相同的方式）
   const maasReq = https.request(options, (maasRes) => {
@@ -94,18 +95,25 @@ function handleStreamRequest(messages, res) {
     console.log('状态码:', maasRes.statusCode);
     console.log('响应头:', maasRes.headers);
     
-    // 设置SSE响应头
-    res.setHeader('Content-Type', 'text/event-stream');
+    // 保留上游状态及内容类型，避免把 JSON 错误伪装成成功的 SSE。
+    res.statusCode = maasRes.statusCode || 502;
+    res.setHeader('Content-Type', maasRes.headers['content-type'] || 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     
+    let responseBytes = 0;
+    maasRes.on('data', chunk => { responseBytes += chunk.length; });
+    maasRes.on('error', error => {
+      console.error('上游响应读取失败:', error.message);
+      res.destroy(error);
+    });
     // 直接将MaaS响应的数据发送给客户端
     maasRes.pipe(res);
     
     // 响应结束时记录日志
     maasRes.on('end', () => {
-      console.log('\n=== 响应结束 ===');
+      console.log('\n=== 响应结束 ===', '响应字节数:', responseBytes);
       // 不再手动发送[DONE]，因为pipe()已经关闭了连接
     });
   });

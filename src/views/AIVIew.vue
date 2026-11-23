@@ -1,12 +1,17 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Delete, Microphone, Plus, VideoPause } from '@element-plus/icons-vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import { useChatStore } from '../stores/chat'
 import ChatMessage from '../components/ChatMessage.vue'
+import WorkspaceSidebar from '../components/WorkspaceSidebar.vue'
+import { parseSSE, getReplyContent } from '../utils/chatStream'
+
+defineOptions({ name: 'AIChatView' })
 
 const store = useChatStore()
+const isPageActive = ref(false)
 const inputMessage = ref('')
 const scroller = ref(null)
 const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
@@ -25,10 +30,25 @@ const renderedMessages = computed(() => waitingForFirstToken.value
 let recognition
 
 function scrollToBottom() {
-  nextTick(() => scroller.value?.scrollToBottom())
+  nextTick(() => {
+    if (isPageActive.value) scroller.value?.scrollToBottom()
+  })
 }
 
 watch(() => store.activeSessionId, scrollToBottom)
+
+onActivated(async () => {
+  isPageActive.value = true
+  await nextTick()
+  if (!isPageActive.value) return
+  scroller.value?.forceUpdate()
+  scrollToBottom()
+})
+
+onDeactivated(() => {
+  isPageActive.value = false
+  recognition?.stop()
+})
 
 function cancelRequest() {
   const request = activeRequest.value
@@ -61,35 +81,6 @@ async function deleteSession(session) {
   }
 }
 
-async function* parseSSE(body, signal) {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  try {
-    while (true) {
-      if (signal.aborted) return
-      const { value, done } = await reader.read()
-      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
-      const events = buffer.split(/\r?\n\r?\n/)
-      buffer = done ? '' : events.pop()
-      for (const event of events) {
-        const data = event.split(/\r?\n/)
-          .filter(line => line.startsWith('data:'))
-          .map(line => line.slice(5).replace(/^ /, ''))
-          .join('\n')
-        if (data) yield data
-      }
-      if (done) break
-    }
-    if (buffer.trim()) {
-      const data = buffer.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n')
-      if (data) yield data
-    }
-  } finally {
-    reader.releaseLock()
-  }
-}
-
 async function sendMessage() {
   const content = inputMessage.value.trim()
   if (!content || isGenerating.value) return
@@ -114,7 +105,16 @@ async function sendMessage() {
       body: JSON.stringify({ messages: apiMessages }),
       signal: request.controller.signal
     })
-    if (!response.ok) throw new Error(`請求失敗 (${response.status})`)
+    const contentType = response.headers.get('content-type') || ''
+    if (!response.ok) {
+      const text = await response.text()
+      let detail
+      try {
+        const payload = JSON.parse(text)
+        detail = payload.error?.message || payload.error || payload.message
+      } catch { /* 非 JSON 错误仅显示状态码 */ }
+      throw new Error(detail || `请求失败 (${response.status})`)
+    }
     if (!response.body) throw new Error('浏览器不支持流式响应')
 
     const answer = { id: crypto.randomUUID(), role: 'assistant', content: '', status: 'streaming', createdAt: Date.now() }
@@ -133,14 +133,15 @@ async function sendMessage() {
       store.updateMessage(sessionId, answer.id, { content: replyContent })
     }
     request.flush = flushContent
-    for await (const data of parseSSE(response.body, request.controller.signal)) {
+    async function* responseEvents() {
+      if (contentType.includes('application/json')) yield await response.text()
+      else yield* parseSSE(response.body, request.controller.signal)
+    }
+    for await (const data of responseEvents()) {
       if (data === '[DONE]') break
       let payload
-      try { payload = JSON.parse(data) } catch { continue }
-      if (payload.error || (payload.code != null && Number(payload.code) !== 0)) {
-        throw new Error(payload.error?.message || payload.error || payload.message || `AI 服务错误 ${payload.code}`)
-      }
-      const delta = payload.choices?.[0]?.delta?.content || payload.choices?.[0]?.message?.content || ''
+      try { payload = JSON.parse(data) } catch { throw new Error('AI 服务返回的数据格式异常，请查看后端日志') }
+      const delta = getReplyContent(payload)
       if (delta && activeRequest.value?.id === request.id) {
         pendingContent += delta
         if (!renderFrame) renderFrame = requestAnimationFrame(flushContent)
@@ -148,7 +149,7 @@ async function sendMessage() {
     }
     flushContent()
     if (activeRequest.value?.id === request.id) {
-      store.updateMessage(sessionId, answer.id, { status: answer.content ? 'complete' : 'error', content: answer.content || '接口没有返回内容' })
+      store.updateMessage(sessionId, answer.id, { status: replyContent ? 'complete' : 'error', content: replyContent || '接口没有返回内容' })
     }
   } catch (error) {
     request.flush?.()
@@ -196,24 +197,29 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="chat-workspace">
-    <aside class="session-panel">
+    <WorkspaceSidebar class="session-panel">
+
+      <button class="new-chat" type="button" @click="createSession"><el-icon><Plus /></el-icon> 新建对话</button>
       <div class="session-heading">
-        <strong>对话</strong>
-        <el-button aria-label="新建对话" title="新建对话" :icon="Plus" circle @click="createSession" />
+        <strong>历史对话</strong>
       </div>
       <div class="session-list">
         <div v-for="session in store.historySessions" :key="session.id" class="session-row" :class="{ active: session.id === store.activeSessionId }">
           <button class="session-select" @click="selectSession(session.id)">
             <span>{{ session.title }}</span>
-            <small>{{ session.messages.filter(message => message.role === 'user').length }} 条提问</small>
           </button>
           <el-button class="session-delete" aria-label="删除对话" title="删除对话" :icon="Delete" text @click="deleteSession(session)" />
         </div>
       </div>
-    </aside>
+    </WorkspaceSidebar>
 
     <div class="chat-container">
+      <header class="chat-header">{{ store.activeSession?.title || '新对话' }}</header>
+      <div v-if="!isGenerating && !store.messages.some(message => message.role === 'user')" class="chat-empty">
+        <h1>今天想学什么？</h1>
+      </div>
       <DynamicScroller
+        v-else
         ref="scroller"
         class="chat-messages"
         :items="renderedMessages"
@@ -222,7 +228,7 @@ onBeforeUnmount(() => {
         :buffer="600"
       >
         <template #default="{ item, index, active }">
-          <DynamicScrollerItem :item="item" :active="active" :index="index" class="message-row">
+          <DynamicScrollerItem :item="item" :active="active" :index="index" :size-dependencies="[item.content, item.typing]" class="message-row">
             <div v-if="item.typing" class="typing-row" role="status" aria-label="AI 正在思考">
               <div class="typing-bubble">
                 <span v-for="dot in 3" :key="dot" class="typing-dot" />
@@ -234,9 +240,8 @@ onBeforeUnmount(() => {
       </DynamicScroller>
 
       <div class="input-area">
-        <el-input v-model="inputMessage" placeholder="向学思智答提问..." @keyup.enter.exact="sendMessage" type="textarea" :rows="3" resize="none" />
+        <el-input v-model="inputMessage" placeholder="向知慧提问..." @keyup.enter.exact="sendMessage" type="textarea" :rows="2" resize="none" />
         <div class="composer-actions">
-          <span class="composer-hint">支持 Markdown、公式與代码</span>
           <div class="composer-buttons">
             <el-button v-if="speechSupported" :type="isListening ? 'danger' : 'default'" :icon="Microphone" :aria-label="isListening ? '停止语音输入' : '语音输入'" :title="isListening ? '停止语音输入' : '语音输入'" @click="toggleSpeech">{{ isListening ? '聆听中' : '语音' }}</el-button>
             <el-button v-if="isGenerating" type="warning" :icon="VideoPause" @click="cancelRequest">停止生成</el-button>
@@ -284,6 +289,7 @@ onBeforeUnmount(() => {
 .composer-buttons { display: flex; gap: 8px; }
 .katex { font-size: 1.05em; }
 @media (max-width: 680px) {
+
   .session-panel { width: 150px; flex-basis: 150px; }
   .chat-messages { padding: 12px 10px; }
   .message-content { max-width: 94%; }
